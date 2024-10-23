@@ -9,29 +9,50 @@ from tkinter import messagebox
 import threading
 from PIL import Image, ImageTk
 
-# import speech_recognition as sr
+import speech_recognition as sr
 
-NUM_PIC_TAKE = 6
-NUM_PIC_SELECT = 4
+NUM_PICTURE = 6
+NUM_SAVE = 4
+PHOTO_FRAME_KEY = ""
+
+PHOTO_FRAME_DICT = {
+    "치즈": "templates/ydp4cuts_brown.png",
+    "김치": "templates/ydp4cuts.png",
+}
 
 def print_picture(fname):
     os.system(f"lpr {fname}")
 
-# def take_picture(fname): # 곧장 저장하는 건 이랬다. 프린트한 건 중요..
-#     fname = f"{fname}.png"
-#     # Initialize the camera
-#     cap = cv2.VideoCapture(0) # default camera
-#     ret, picture = cap.read() # if ret is True, then the picture is taken 
-#     if ret:
-#         # Save the image
-#         cv2.imwrite(f"{fname}", picture)
-#         print(f"Photo taken and saved as {fname}")
-#         print_picture(fname)
-#     else:
-#         print(f"Failed to capture image to {fname}")
-#     cap.release()
-#     # Print the current date and time
+def listen_for_signal():
+    global PHOTO_FRAME_KEY
+    r = sr.Recognizer() # 객체 설정
+    mic = sr.Microphone() # 마이크 설정 : 일단은 컴에 있는 마이크로 설정
+    with mic as source:
+        print("Adjusting for ambient noise...")
+        r.adjust_for_ambient_noise(source) 
 
+    while True: # 무한 루프로 계속 듣기: 이해될 때까지. 다만... 
+        with mic as source:
+            print("Listening for signal...")
+            audio = r.listen(source)
+        try:
+            print("Recognizing audio...")
+            text = r.recognize_google(audio, language='ko-KR')
+            print(f"You said: {text}")
+            if "치즈" in text or "김치" in text:  # lower() : 소문자로 바꾸기
+                print("signal detected!")
+                if "치즈" in text:
+                    PHOTO_FRAME_KEY = "치즈"
+                elif "김치" in text:
+                    PHOTO_FRAME_KEY = "김치"
+                threading.Thread(target=take_pictures_thread).start()
+                return
+
+        except sr.UnknownValueError:
+            print("Could not understand audio")
+        except sr.RequestError as e:
+            print(f"Could not request results; {e}")
+        
 def take_pictures_thread():    
     # Now take 4 pictures
     cap = cv2.VideoCapture(2)
@@ -39,19 +60,16 @@ def take_pictures_thread():
         messagebox.showerror("Error", "Failed to open camera")
         return
     pictures = []
-    for i in range(NUM_PIC_TAKE):
-        time.sleep(0.5)
+    for i in range(NUM_PICTURE):
+        time.sleep(0.1) # 여기를 나중엔 타이머로 바꿔서 소리도 추가해서 내주기!!
         ret, frame = cap.read()
         if ret:
             pictures.append(frame)
-            time.sleep(0.5)
+            time.sleep(0.1)
 
     cap.release()
-    # Display the pictures and allow user to select one
+    # 이거 끝나면 자동으로 display_pictures 함수 실행되게 하기
     root.after(0, display_pictures, pictures)
-
-def take_pictures():
-    threading.Thread(target=take_pictures_thread).start()
 
 
 def display_pictures(pictures): # pictures is a list of cv2 images
@@ -59,7 +77,7 @@ def display_pictures(pictures): # pictures is a list of cv2 images
         messagebox.showerror("Error", "No pictures to display")
         return
     display_window = tk.Toplevel(root)
-    display_window.title("Select Best Two Pictures")
+    display_window.title(f"Select Best {NUM_SAVE} Pictures")
 
     frame = tk.Frame(display_window) # Make a frame inside display_window!
     frame.pack(padx=10, pady=10)
@@ -68,15 +86,15 @@ def display_pictures(pictures): # pictures is a list of cv2 images
     selected_indices =  []
 
     def on_select(idx):
-        if idx not in selected_indices and len(selected_indices) < NUM_PIC_SELECT:
+        if idx not in selected_indices and len(selected_indices) < NUM_SAVE:
             selected_indices.append(idx)
             btns[idx].config(relief=tk.SUNKEN)
         elif idx in selected_indices:
             selected_indices.remove(idx)
             btns[idx].config(relief=tk.RAISED)
 
-        # Enable the confirm button only when two images are selected
-        if len(selected_indices) == NUM_PIC_SELECT:
+        # Enable the confirm button only when SELECTED_PICS images are selected
+        if len(selected_indices) == NUM_SAVE:
             confirm_button.config(state=tk.NORMAL)
         else:
             confirm_button.config(state=tk.DISABLED)
@@ -94,11 +112,11 @@ def display_pictures(pictures): # pictures is a list of cv2 images
         btns.append(btn)
 
     def confirm_selection():
-        if len(selected_indices) == NUM_PIC_SELECT:
+        if len(selected_indices) == NUM_SAVE:
             selected_pics = [pictures[i] for i in selected_indices]
             display_window.destroy()
             # Adjust each selected picture
-            adjust_imaging(selected_pics, 0) # 자. 숏컷으로 adjust_imaging을 제꼈다.
+            adjust_imaging(selected_pics, 0)
     
     confirm_button = tk.Button(display_window, text="Confirm Selection", state=tk.DISABLED, command=confirm_selection)
     confirm_button.pack(pady=10)
@@ -175,6 +193,7 @@ def adjust_imaging(images, index): # Images: the complete list. index: the index
     save_button = tk.Button(adjust_window, text="Save Image", command=save_image)
     save_button.pack()
 
+
 def composite_image(): # 영랑네컷
     # add a save button to save the composite image
     def save_composite():
@@ -186,7 +205,8 @@ def composite_image(): # 영랑네컷
         except Exception as e:
             print(f"Error saving composite image: {e}")
 
-    frame_path = 'templates/ydp4cuts_brown.png'
+    import pdb; pdb.set_trace()
+    frame_path = PHOTO_FRAME_DICT[PHOTO_FRAME_KEY]
     if not os.path.exists(frame_path):
         messagebox.showerrer("Frame Error", f"Frame image {frame_path} not found.")
         return
@@ -282,12 +302,11 @@ def composite_image(): # 영랑네컷
     label.pack()
     save_button = tk.Button(frame, text="Save Image", command=save_composite)
     save_button.pack(pady=10)
-    
 
 if __name__ == "__main__":
     # listen_for_cheese()
     root = tk.Tk()
     root.title("Camera App")
-    take_pictures_button = tk.Button(root, text="Take Pictures", command=take_pictures)
+    take_pictures_button = tk.Button(root, text="Start", command=listen_for_signal)
     take_pictures_button.pack()
     root.mainloop()
