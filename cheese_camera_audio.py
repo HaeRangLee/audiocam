@@ -13,6 +13,8 @@ import numpy as np
 
 import speech_recognition as sr
 
+from qr import upload_image_to_github
+
 NUM_PICTURE = 6
 NUM_SAVE = 4
 PHOTO_FRAME_KEY = ""
@@ -24,6 +26,7 @@ PHOTO_FRAME_DICT = {
     "치즈": "templates/ydp4cuts_brown.png",
     "김치": "templates/ydp4cuts.png",
 }
+
 
 def print_picture(fname):
     os.system(f"lpr {fname}")
@@ -157,84 +160,20 @@ def display_pictures(pictures): # pictures is a list of cv2 images
     # Keep a references to prevent garbage collection: save to display_window.images !!!
     display_window.images = images
 
-# def adjust_imaging(images, index): # Images: the complete list. index: the index of a image to handle in this function. -> will be recursive. confirm_selection(): adjust_imaging(images, 0) -> adjust_imaging(images, 0) 
-#     if index >= len(images):
-#         # All images have been adjusted; proceed to composite
-#         composite_image()
-#         return
-    
-#     image = images[index] # The main protagonist in this function!!
-#     adjust_window = tk.Toplevel(root)
-#     adjust_window.title(f"Adjust Image {index + 1}")
-#     adjust_window.geometry("600x600")
-
-#     image_frame = tk.Frame(adjust_window)
-#     image_frame.pack(pady=10)
-
-#     controls_frame = tk.Frame(adjust_window)
-#     controls_frame.pack(pady=10)
-
-#     save_frame = tk.Frame(adjust_window)
-#     save_frame.pack(pady=10)
-
-#     def get_image():
-#         # I think scaling a brightness is not..so useful. So does scaling a contrast. How about just applying a predefined filter to beautify? Or give some choice on cute filters? But anyway they are not so important!!
-#         brightness = brightness_scale.get()
-#         contrast = contrast_scale.get()
-#         adjusted = cv2.convertScaleAbs(image, alpha=contrast, beta=brightness) # this image is opencv image
-#         return adjusted
-    
-#     def update_image(val=None):
-#         adjusted = get_image()
-#         cv2image = cv2.cvtColor(adjusted, cv2.COLOR_BGR2RGBA)
-#         img = Image.fromarray(cv2image)
-#         img.thumbnail((500,400))
-#         imgtk = ImageTk.PhotoImage(image=img)
-#         img_label.configure(image=imgtk)
-#         img_label.image = imgtk # Keep a reference
-
-#     cv2image = cv2.cvtColor(image, cv2.COLOR_BGR2RGBA)
-#     img = Image.fromarray(cv2image) # numpy array to PIL image
-#     img.thumbnail((500, 400)) # Resize the image inplace
-#     imgtk = ImageTk.PhotoImage(image=img) # open image with ImageTk.PhotoImage
-#     img_label = tk.Label(image_frame, image=imgtk) # NOT adjust_window (full window), but image_frame
-#     img_label.image = imgtk # Keep a reference
-#     img_label.pack() # Place the image in the window
-
-#     brightness_label = tk.Label(controls_frame, text="Brightness")
-#     brightness_label.grid(row=0, column=0, padx=5,pady=5)
-#     brightness_scale = tk.Scale(controls_frame, from_=-100, to=100, orient=tk.HORIZONTAL, length=300, command=update_image)
-#     brightness_scale.set(0)
-#     brightness_scale.grid(row=0, column=1, padx=5,pady=5)
-
-#     contrast_label = tk.Label(controls_frame, text="Contrast")
-#     contrast_label.grid(row=1, column=0, padx=5,pady=5)
-#     contrast_scale = tk.Scale(controls_frame, from_=0.5, to=3.0, resolution=0.1, orient=tk.HORIZONTAL, length=300, command=update_image)
-#     contrast_scale.set(1.0)
-#     contrast_scale.grid(row=1, column=1, padx=5,pady=5)
-
-#     def save_image():
-#         adjusted = get_image() # Adjust the image here and return the adjusted image
-#         images[index] = adjusted
-#         adjusted_images.append(adjusted)
-#         adjust_window.destroy()
-#         # Proceed to adjust the next image recursively
-#         adjust_imaging(images, index + 1) # 여기가 아닌 거 같은데?
-
-#     save_button = tk.Button(adjust_window, text="Save Image", command=save_image)
-#     save_button.pack()
-
-
 def composite_image(adjusted_images): # 영랑네컷
     # add a save button to save the composite image
-    def save_composite():
+    def save_and_print_composite():
         now = datetime.datetime.now().strftime("%m%d_%H%M")
         save_path = f"composite_image_{now}.png"
-        try:
-            final_composite.save(save_path)
-            print(f"Composite image saved as {save_path}")
-        except Exception as e:
-            print(f"Error saving composite image: {e}")
+        final_composite.save(save_path)
+        print(f"Composite image saved as {save_path}")
+        # os.system(f'mspaint /pt {save_path}')
+        download_url, qr_fpath = upload_image_to_github(save_path)
+
+        print_picture(save_path)
+        print(f"Composite image sent to printer")
+
+        root.after(0, display_qr_code, qr_fpath)
 
     frame_path = PHOTO_FRAME_DICT[PHOTO_FRAME_KEY]
     if not os.path.exists(frame_path):
@@ -330,8 +269,34 @@ def composite_image(adjusted_images): # 영랑네컷
     label = tk.Label(frame, image=tk_image)
     label.image = tk_image  # Keep a reference to prevent garbage collection
     label.pack()
-    save_button = tk.Button(frame, text="Save Image", command=save_composite)
+    save_button = tk.Button(frame, text="Save and Print Image", command=lambda: [save_and_print_composite, composite_window.destroy])
     save_button.pack(pady=10)
+
+def display_qr_code(qr_fpath):
+    qr_window = tk.Toplevel(root)
+    qr_window.title("Thank You!")
+    qr_window.geometry("600x600")  # Adjust the size as needed
+
+    frame = tk.Frame(qr_window)
+    frame.pack(padx=10, pady=10)
+
+    # Load the 'Thank You!' image
+    try:
+        qr_img = Image.open(qr_fpath)  # Ensure this file exists
+    except FileNotFoundError:
+        messagebox.showerror("Image Not Found", "The 'thank_you.png' image was not found.")
+        qr_window.destroy()
+        return
+
+    tk_qr_img = ImageTk.PhotoImage(qr_img)
+
+    label = tk.Label(frame, image=tk_qr_img)
+    label.image = tk_qr_img  # Keep a reference to prevent garbage collection
+    label.pack()
+
+    # Optionally, add a button to close the window
+    close_button = tk.Button(frame, text="Close", command=qr_window.destroy)
+    close_button.pack(pady=10)
 
 if __name__ == "__main__":
     # listen_for_cheese()
