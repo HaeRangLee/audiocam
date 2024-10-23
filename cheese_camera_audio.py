@@ -9,6 +9,7 @@ import tkinter as tk
 from tkinter import messagebox
 import threading
 from PIL import Image, ImageTk
+import numpy as np
 
 import speech_recognition as sr
 
@@ -121,7 +122,34 @@ def display_pictures(pictures): # pictures is a list of cv2 images
             selected_pics = [pictures[i] for i in selected_indices]
             display_window.destroy()
             # Adjust each selected picture
-            adjust_imaging(selected_pics, 0)
+            adjust_imaging(selected_pics)
+
+    def adjust_imaging(images):
+        adjusted_images = []
+
+        alpha = 1.1
+        beta = 20
+        saturation_increase = 10
+        d = 5
+        sigmaColor = 50
+        sigmaSpace = 50
+        gamma = 1.2
+        
+        for image in images:
+            adjusted = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+            hsv = cv2.cvtColor(adjusted, cv2.COLOR_BGR2HSV)
+            h, s, v = cv2.split(hsv)
+            s = cv2.add(s, saturation_increase)
+            hsv_enhanced = cv2.merge((h, s, v))
+            color_enhanced = cv2.cvtColor(hsv_enhanced, cv2.COLOR_HSV2BGR)
+            smoothed = cv2.bilateralFilter(color_enhanced, d=d, sigmaColor=sigmaColor, sigmaSpace=sigmaSpace)
+
+            invGamma = 1.0 / gamma
+            table = np.array([((i / 255.0) ** invGamma) * 255 for i in np.arange(256)]).astype("uint8")
+            final_image = cv2.LUT(smoothed, table)
+            adjusted_images.append(final_image)
+        
+        composite_image(adjusted_images)
     
     confirm_button = tk.Button(display_window, text="Confirm Selection", state=tk.DISABLED, command=confirm_selection)
     confirm_button.pack(pady=10)
@@ -129,77 +157,75 @@ def display_pictures(pictures): # pictures is a list of cv2 images
     # Keep a references to prevent garbage collection: save to display_window.images !!!
     display_window.images = images
 
-adjusted_images = []
-
-def adjust_imaging(images, index): # Images: the complete list. index: the index of a image to handle in this function. -> will be recursive. confirm_selection(): adjust_imaging(images, 0) -> adjust_imaging(images, 0) 
-    if index >= len(images):
-        # All images have been adjusted; proceed to composite
-        composite_image()
-        return
+# def adjust_imaging(images, index): # Images: the complete list. index: the index of a image to handle in this function. -> will be recursive. confirm_selection(): adjust_imaging(images, 0) -> adjust_imaging(images, 0) 
+#     if index >= len(images):
+#         # All images have been adjusted; proceed to composite
+#         composite_image()
+#         return
     
-    image = images[index] # The main protagonist in this function!!
-    adjust_window = tk.Toplevel(root)
-    adjust_window.title(f"Adjust Image {index + 1}")
-    adjust_window.geometry("600x600")
+#     image = images[index] # The main protagonist in this function!!
+#     adjust_window = tk.Toplevel(root)
+#     adjust_window.title(f"Adjust Image {index + 1}")
+#     adjust_window.geometry("600x600")
 
-    image_frame = tk.Frame(adjust_window)
-    image_frame.pack(pady=10)
+#     image_frame = tk.Frame(adjust_window)
+#     image_frame.pack(pady=10)
 
-    controls_frame = tk.Frame(adjust_window)
-    controls_frame.pack(pady=10)
+#     controls_frame = tk.Frame(adjust_window)
+#     controls_frame.pack(pady=10)
 
-    save_frame = tk.Frame(adjust_window)
-    save_frame.pack(pady=10)
+#     save_frame = tk.Frame(adjust_window)
+#     save_frame.pack(pady=10)
 
-    def get_image():
-        # I think scaling a brightness is not..so useful. So does scaling a contrast. How about just applying a predefined filter to beautify? Or give some choice on cute filters? But anyway they are not so important!!
-        brightness = brightness_scale.get()
-        contrast = contrast_scale.get()
-        adjusted = cv2.convertScaleAbs(image, alpha=contrast, beta=brightness) # this image is opencv image
-        return adjusted
+#     def get_image():
+#         # I think scaling a brightness is not..so useful. So does scaling a contrast. How about just applying a predefined filter to beautify? Or give some choice on cute filters? But anyway they are not so important!!
+#         brightness = brightness_scale.get()
+#         contrast = contrast_scale.get()
+#         adjusted = cv2.convertScaleAbs(image, alpha=contrast, beta=brightness) # this image is opencv image
+#         return adjusted
     
-    def update_image(val=None):
-        adjusted = get_image()
-        cv2image = cv2.cvtColor(adjusted, cv2.COLOR_BGR2RGBA)
-        img = Image.fromarray(cv2image)
-        img.thumbnail((500,400))
-        imgtk = ImageTk.PhotoImage(image=img)
-        img_label.configure(image=imgtk)
-        img_label.image = imgtk # Keep a reference
+#     def update_image(val=None):
+#         adjusted = get_image()
+#         cv2image = cv2.cvtColor(adjusted, cv2.COLOR_BGR2RGBA)
+#         img = Image.fromarray(cv2image)
+#         img.thumbnail((500,400))
+#         imgtk = ImageTk.PhotoImage(image=img)
+#         img_label.configure(image=imgtk)
+#         img_label.image = imgtk # Keep a reference
 
-    cv2image = cv2.cvtColor(image, cv2.COLOR_BGR2RGBA)
-    img = Image.fromarray(cv2image) # numpy array to PIL image
-    img.thumbnail((500, 400)) # Resize the image inplace
-    imgtk = ImageTk.PhotoImage(image=img) # open image with ImageTk.PhotoImage
-    img_label = tk.Label(image_frame, image=imgtk) # NOT adjust_window (full window), but image_frame
-    img_label.image = imgtk # Keep a reference
-    img_label.pack() # Place the image in the window
+#     cv2image = cv2.cvtColor(image, cv2.COLOR_BGR2RGBA)
+#     img = Image.fromarray(cv2image) # numpy array to PIL image
+#     img.thumbnail((500, 400)) # Resize the image inplace
+#     imgtk = ImageTk.PhotoImage(image=img) # open image with ImageTk.PhotoImage
+#     img_label = tk.Label(image_frame, image=imgtk) # NOT adjust_window (full window), but image_frame
+#     img_label.image = imgtk # Keep a reference
+#     img_label.pack() # Place the image in the window
 
-    brightness_label = tk.Label(controls_frame, text="Brightness")
-    brightness_label.grid(row=0, column=0, padx=5,pady=5)
-    brightness_scale = tk.Scale(controls_frame, from_=-100, to=100, orient=tk.HORIZONTAL, length=300, command=update_image)
-    brightness_scale.set(0)
-    brightness_scale.grid(row=0, column=1, padx=5,pady=5)
+#     brightness_label = tk.Label(controls_frame, text="Brightness")
+#     brightness_label.grid(row=0, column=0, padx=5,pady=5)
+#     brightness_scale = tk.Scale(controls_frame, from_=-100, to=100, orient=tk.HORIZONTAL, length=300, command=update_image)
+#     brightness_scale.set(0)
+#     brightness_scale.grid(row=0, column=1, padx=5,pady=5)
 
-    contrast_label = tk.Label(controls_frame, text="Contrast")
-    contrast_label.grid(row=1, column=0, padx=5,pady=5)
-    contrast_scale = tk.Scale(controls_frame, from_=0.5, to=3.0, resolution=0.1, orient=tk.HORIZONTAL, length=300, command=update_image)
-    contrast_scale.set(1.0)
-    contrast_scale.grid(row=1, column=1, padx=5,pady=5)
+#     contrast_label = tk.Label(controls_frame, text="Contrast")
+#     contrast_label.grid(row=1, column=0, padx=5,pady=5)
+#     contrast_scale = tk.Scale(controls_frame, from_=0.5, to=3.0, resolution=0.1, orient=tk.HORIZONTAL, length=300, command=update_image)
+#     contrast_scale.set(1.0)
+#     contrast_scale.grid(row=1, column=1, padx=5,pady=5)
 
-    def save_image():
-        adjusted = get_image() # Adjust the image here and return the adjusted image
-        images[index] = adjusted
-        adjusted_images.append(adjusted)
-        adjust_window.destroy()
-        # Proceed to adjust the next image recursively
-        adjust_imaging(images, index + 1) # 여기가 아닌 거 같은데?
+#     def save_image():
+#         adjusted = get_image() # Adjust the image here and return the adjusted image
+#         images[index] = adjusted
+#         adjusted_images.append(adjusted)
+#         adjust_window.destroy()
+#         # Proceed to adjust the next image recursively
+#         adjust_imaging(images, index + 1) # 여기가 아닌 거 같은데?
 
-    save_button = tk.Button(adjust_window, text="Save Image", command=save_image)
-    save_button.pack()
+#     save_button = tk.Button(adjust_window, text="Save Image", command=save_image)
+#     save_button.pack()
 
 
-def composite_image(): # 영랑네컷
+def composite_image(adjusted_images): # 영랑네컷
     # add a save button to save the composite image
     def save_composite():
         now = datetime.datetime.now().strftime("%m%d_%H%M")
@@ -210,7 +236,6 @@ def composite_image(): # 영랑네컷
         except Exception as e:
             print(f"Error saving composite image: {e}")
 
-    import pdb; pdb.set_trace()
     frame_path = PHOTO_FRAME_DICT[PHOTO_FRAME_KEY]
     if not os.path.exists(frame_path):
         messagebox.showerrer("Frame Error", f"Frame image {frame_path} not found.")
@@ -312,6 +337,6 @@ if __name__ == "__main__":
     # listen_for_cheese()
     root = tk.Tk()
     root.title("Camera App")
-    take_pictures_button = tk.Button(root, text="Start", command=listen_for_signal)
+    take_pictures_button = tk.Button(root, text="Start", command=listen_for_signal, foreground="#000000", background="#a80000", padx=30, pady=30, font=("Helvetica", 100))
     take_pictures_button.pack()
     root.mainloop()
