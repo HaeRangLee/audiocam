@@ -4,6 +4,7 @@ import datetime
 import time
 import ast
 
+from playsound import playsound
 import tkinter as tk
 from tkinter import messagebox
 import threading
@@ -14,6 +15,9 @@ import speech_recognition as sr
 NUM_PICTURE = 6
 NUM_SAVE = 4
 PHOTO_FRAME_KEY = ""
+CAMERA_INDEX = 0
+
+file_path_정답 = "C:/Users/hylee/Downloads/answer.mp3"
 
 PHOTO_FRAME_DICT = {
     "치즈": "templates/ydp4cuts_brown.png",
@@ -41,6 +45,7 @@ def listen_for_signal():
             print(f"You said: {text}")
             if "치즈" in text or "김치" in text:  # lower() : 소문자로 바꾸기
                 print("signal detected!")
+                playsound(file_path_정답)
                 if "치즈" in text:
                     PHOTO_FRAME_KEY = "치즈"
                 elif "김치" in text:
@@ -55,7 +60,7 @@ def listen_for_signal():
         
 def take_pictures_thread():    
     # Now take 4 pictures
-    cap = cv2.VideoCapture(2)
+    cap = cv2.VideoCapture(CAMERA_INDEX)
     if not cap.isOpened():
         messagebox.showerror("Error", "Failed to open camera")
         return
