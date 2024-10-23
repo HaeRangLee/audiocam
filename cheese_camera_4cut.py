@@ -3,7 +3,6 @@ import os
 import datetime
 import time
 import ast
-
 import tkinter as tk
 from tkinter import messagebox
 import threading
@@ -220,4 +219,4 @@ if __name__ == "__main__":
     root.title("Camera App")
     take_pictures_button = tk.Button(root, text="Take Pictures", command=take_pictures)
     take_pictures_button.pack()
-    root.mainloop()
+    root.mainloop() 

@@ -4,7 +4,7 @@ import datetime
 import time
 import numpy as np
 
-
+from playsound import playsound
 import tkinter as tk
 from tkinter import messagebox
 import threading
@@ -17,6 +17,8 @@ CAMERA_INDEX = 1
 NUM_PICTURE = 6
 
 NUM_SAVE = 4
+
+FILE_PATH_answer = "C:/Users/hylee/Downloads/answer.mp3"
 
 def print_picture(fname):
     # os.system(f"lpr {fname}") # 맥 버전
@@ -58,6 +60,7 @@ def listen_for_signal():
             print(f"You said: {text}")
             if "치즈" in text or "김치" in text:  # lower() : 소문자로 바꾸기
                 print("signal detected!")
+                playsound(FILE_PATH_answer)
                 #take_pictures_thread(pictures) # 임의로 수정함
                 # now = datetime.datetime.now()
                 # take_picture(fname=f"{now.strftime('%m-%d-%H-%M')}")
@@ -74,7 +77,7 @@ def listen_for_signal():
 
 def take_pictures_thread():    
     # Now take 4 pictures
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(CAMERA_INDEX)
     pictures = []
     for i in range(NUM_PICTURE):
         ret, frame = cap.read()
@@ -355,11 +358,12 @@ def composite_image(): # 영랑네컷
 
 if __name__ == "__main__":
     if listen_for_signal() : 
-        root = tk.Tk()
-        root.title("Camera App")
-        take_pictures_button = tk.Button(root, text="Take Pictures", command=take_pictures)
-        take_pictures_button.pack()
-        root.mainloop() 
+        print("gk.....")
+        # root = tk.Tk()
+        # root.title("Camera App")
+        # take_pictures_button = tk.Button(root, text="Take Pictures", command=take_pictures)
+        # take_pictures_button.pack()
+        # root.mainloop() 
         
     
 
