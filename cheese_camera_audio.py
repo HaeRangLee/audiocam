@@ -3,7 +3,7 @@ import os
 import datetime
 import time
 import ast
-
+import math
 from playsound import playsound
 import tkinter as tk
 from tkinter import messagebox
@@ -15,21 +15,23 @@ import speech_recognition as sr
 
 from qr import upload_image_to_github
 
-NUM_PICTURE = 6
+NUM_PICTURE = 5
 NUM_SAVE = 4
 PHOTO_FRAME_KEY = ""
 CAMERA_INDEX = 0
-
 file_path_정답 = "C:/Users/hylee/Downloads/answer.mp3"
+file_path_카메라 = "C:/Users/hylee/Downloads/camera.mp3"
 
 PHOTO_FRAME_DICT = {
-    "치즈": "templates/ydp4cuts_brown.png",
-    "김치": "templates/ydp4cuts.png",
+    "치즈": 'D:/hr_workspace/audiocam/audiocam/templates/ydp4cuts_brown_fixed_png.png',
+    #"치즈": "D:/hr_workspace/audiocam/audiocam/templates/ydp4cuts_brown_fixed.png",
+    "김치": "D:/hr_workspace/audiocam/audiocam/templates/ydp4cuts_sky_fixed_png.png",
 }
 
 
 def print_picture(fname):
-    os.system(f"lpr {fname}")
+    # os.system(f"lpr {fname}")
+    os.system(f"mspaint /pt {fname}")
 
 def listen_for_signal():
     global PHOTO_FRAME_KEY
@@ -52,7 +54,7 @@ def listen_for_signal():
                 playsound(file_path_정답)
                 if "치즈" in text:
                     PHOTO_FRAME_KEY = "치즈"
-                elif "김치" in text:
+                if "김치" in text:
                     PHOTO_FRAME_KEY = "김치"
                 threading.Thread(target=take_pictures_thread).start()
                 return
@@ -69,16 +71,58 @@ def take_pictures_thread():
         messagebox.showerror("Error", "Failed to open camera")
         return
     pictures = []
-    for i in range(NUM_PICTURE):
-        time.sleep(0.1) # 여기를 나중엔 타이머로 바꿔서 소리도 추가해서 내주기!!
-        ret, frame = cap.read()
-        if ret:
-            pictures.append(frame)
-            time.sleep(0.1)
+    countdown_time_default = 30000
+    countdown_time =30000
+    picture_interval = 5000
+    preview_interval = 50
 
-    cap.release()
-    # 이거 끝나면 자동으로 display_pictures 함수 실행되게 하기
-    root.after(0, display_pictures, pictures)
+#12초 동안 찍을 수 있음
+
+
+    preview_window = tk.Toplevel(root)
+    preview_window.title("camera Preview")
+    preview_label = tk.Label(preview_window)
+    preview_label.pack()
+
+    time_label = tk.Label(preview_window, text = f'Time left : {int(round(countdown_time%picture_interval, 0))} seconds')
+    time_label.pack()
+    
+    shot_label = tk.Label(preview_window, text = f'남은 사진 : {countdown_time//picture_interval+1}')
+    shot_label.pack()
+
+    def update_preview():
+        nonlocal countdown_time
+        ret, frame = cap.read()
+        if ret : 
+            cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
+            img = Image.fromarray(cv2image)
+            img.thumbnail((1920, 1080))
+            imgtk = ImageTk.PhotoImage(image = img)
+            preview_label.imgtk = imgtk
+            preview_label.configure(image = imgtk)
+            
+            if countdown_time > 0 :
+                countdown_time -= preview_interval
+                time_label.config(text= f'Time left : {int(round((countdown_time%picture_interval)/1000, 0))}', font = ('Arial', 40))
+                shot_label.config(text = f'남은 사진 : {countdown_time//picture_interval+1}장', font = ('Arial', 40))
+            else:
+                cap.release()
+                preview_window.destroy()    
+                root.after(0, display_pictures, pictures)
+                return
+            
+            if countdown_time % picture_interval == 0:
+                playsound(file_path_카메라)
+                pictures.append(frame)
+                print_time = int((countdown_time_default - countdown_time)/1000)
+                
+                #저장될 때 1초가 늦어지는 걸 보정하는 부분
+                print(f"Picture taken at {print_time} seconds.")
+        
+        preview_window.after(preview_interval, update_preview)
+        #왜인지는 모르겠으나... 실제 시간과 다르게 가서 보정한 것임.
+
+    update_preview()
 
 
 def display_pictures(pictures): # pictures is a list of cv2 images
@@ -163,21 +207,22 @@ def display_pictures(pictures): # pictures is a list of cv2 images
 def composite_image(adjusted_images): # 영랑네컷
     # add a save button to save the composite image
     def save_and_print_composite():
+        print("let's save and print!")
         now = datetime.datetime.now().strftime("%m%d_%H%M")
         save_path = f"composite_image_{now}.png"
         final_composite.save(save_path)
         print(f"Composite image saved as {save_path}")
-        # os.system(f'mspaint /pt {save_path}')
+        os.system(f'mspaint /pt {save_path}')
         download_url, qr_fpath = upload_image_to_github(save_path)
 
-        print_picture(save_path)
+        #print_picture(save_path)
         print(f"Composite image sent to printer")
 
         root.after(0, display_qr_code, qr_fpath)
 
     frame_path = PHOTO_FRAME_DICT[PHOTO_FRAME_KEY]
     if not os.path.exists(frame_path):
-        messagebox.showerrer("Frame Error", f"Frame image {frame_path} not found.")
+        messagebox.showerror("Frame Error", f"Frame image {frame_path} not found.")
         return
     
     # Load the frame (not a tkinker object lol)
@@ -269,7 +314,7 @@ def composite_image(adjusted_images): # 영랑네컷
     label = tk.Label(frame, image=tk_image)
     label.image = tk_image  # Keep a reference to prevent garbage collection
     label.pack()
-    save_button = tk.Button(frame, text="Save and Print Image", command=lambda: [save_and_print_composite, composite_window.destroy])
+    save_button = tk.Button(frame, text="Save and Print Image", command=lambda: [save_and_print_composite(), composite_window.destroy()])
     save_button.pack(pady=10)
 
 def display_qr_code(qr_fpath):
